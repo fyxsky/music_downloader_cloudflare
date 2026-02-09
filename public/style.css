@@ -120,6 +120,7 @@ body {
   border-radius: 12px;
   padding: 10px 18px;
   font-weight: 800;
+  font-size: 16px;
   cursor: pointer;
 }
 
@@ -144,6 +145,7 @@ body {
   border-radius: 12px;
   padding: 10px 18px;
   font-weight: 800;
+  font-size: 16px;
   cursor: pointer;
   border: 1px solid #bb3e5b;
   background: #2a1520;
