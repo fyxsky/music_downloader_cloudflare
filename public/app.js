@@ -133,10 +133,48 @@ function artistList(song) {
   return (song.artists || []).map((a) => a.name || "").join(" / ");
 }
 
+function isSameSongName(expected, actual) {
+  const a = normalize(expected);
+  const b = normalize(actual);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function primaryArtistName(artist) {
+  return (artist || "").split(/[\/、，,&]/)[0].trim();
+}
+
+async function searchCandidates(name, artist) {
+  const queries = [];
+  const q1 = `${name} ${artist}`.trim();
+  const q2 = `${name}`.trim();
+  const pArtist = primaryArtistName(artist);
+  const q3 = `${name} ${pArtist}`.trim();
+  [q1, q2, q3].forEach((q) => {
+    if (q && !queries.includes(q)) queries.push(q);
+  });
+
+  const merged = [];
+  const seen = new Set();
+  for (const q of queries) {
+    try {
+      const { songs } = await apiJson("/api/search", { s: q });
+      for (const s of songs || []) {
+        if (!s?.id || seen.has(s.id)) continue;
+        seen.add(s.id);
+        merged.push(s);
+      }
+    } catch {
+      // 单轮搜索失败不终止整体流程，继续尝试下一组关键词。
+    }
+  }
+  return merged;
+}
+
 async function chooseCandidate(name, artist, candidates) {
   if (!candidates.length) throw new Error("搜索不到");
   const m = mode();
-  const sameName = candidates.filter((s) => normalize(s.name) === normalize(name));
+  const sameName = candidates.filter((s) => isSameSongName(name, s.name));
   const exactArtist = (list) => list.filter((s) => (s.artists || []).some((a) => normalize(a.name) === normalize(artist)));
 
   const pickPlayable = async (ordered) => {
@@ -221,8 +259,8 @@ async function processOne(row, idx) {
   updateRowStatus(row, "搜索中...");
   log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
 
-  const { songs } = await apiJson("/api/search", { s: `${row.name} ${row.artist}`.trim() });
-  const picked = await chooseCandidate(row.name, row.artist, songs || []);
+  const songs = await searchCandidates(row.name, row.artist);
+  const picked = await chooseCandidate(row.name, row.artist, songs);
 
   updateRowStatus(row, "获取详情...");
 

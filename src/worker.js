@@ -6,7 +6,7 @@ const CORS_HEADERS = {
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0",
-  Referer: "http://music.163.com/"
+  Referer: "https://music.163.com/"
 };
 
 const ALLOW_FETCH_HOSTS = new Set([
@@ -52,10 +52,20 @@ async function requestJson(url, params = {}) {
 }
 
 async function checkPlayable(songId) {
-  const url = `http://music.163.com/song/media/outer/url?id=${songId}.mp3`;
-  const resp = await fetch(url, { headers: HEADERS, redirect: "follow" });
-  const contentType = resp.headers.get("content-type") || "";
-  return !resp.url.includes("music.163.com/404") && contentType.includes("audio/mpeg");
+  const url = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
+  const resp = await fetch(url, {
+    headers: {
+      ...HEADERS,
+      Range: "bytes=0-1"
+    },
+    redirect: "follow"
+  });
+  if (!resp.ok) return false;
+  if (resp.url.includes("music.163.com/404")) return false;
+  const contentType = (resp.headers.get("content-type") || "").toLowerCase();
+  // 某些边缘节点会返回 audio/mp3、audio/mpeg 或 octet-stream，统一视为可下载。
+  if (contentType.includes("text/html")) return false;
+  return true;
 }
 
 export default {
@@ -75,10 +85,10 @@ export default {
       if (pathname === "/api/search") {
         const s = searchParams.get("s") || "";
         if (!s.trim()) return json({ code: 400, message: "缺少参数 s" }, 400);
-        const data = await requestJson("http://music.163.com/api/search/get/", {
+        const data = await requestJson("https://music.163.com/api/search/get/", {
           s,
           type: 1,
-          limit: 12
+          limit: 50
         });
         const songs = data?.result?.songs || [];
         return json({ code: 200, songs });
@@ -116,7 +126,7 @@ export default {
       if (pathname === "/api/download") {
         const id = searchParams.get("id");
         if (!id) return json({ code: 400, message: "缺少参数 id" }, 400);
-        const source = `http://music.163.com/song/media/outer/url?id=${id}.mp3`;
+        const source = `https://music.163.com/song/media/outer/url?id=${id}.mp3`;
         const resp = await fetch(source, { headers: HEADERS, redirect: "follow" });
         if (resp.url.includes("music.163.com/404")) {
           return json({ code: 404, message: "歌曲不存在或不可下载" }, 404);
