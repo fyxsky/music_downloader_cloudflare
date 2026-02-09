@@ -187,6 +187,33 @@ body {
   flex-wrap: nowrap;
 }
 
+.source-row {
+  justify-content: flex-end;
+}
+
+.source-inline {
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.source-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #8ea0c8;
+  font-weight: 700;
+  border: 1px solid #31405f;
+  border-radius: 999px;
+  background: #0d1322;
+  padding: 5px 10px;
+}
+
+.source-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: #27d5c0;
+}
+
 .label {
   color: #a5b2d2;
   font-weight: 700;
@@ -539,6 +566,8 @@ tbody tr:nth-child(even) td {
   .action-buttons .danger-btn { flex: 1; }
   .match-main { flex-wrap: wrap; }
   .group-right { margin-left: 0; }
+  .source-row { justify-content: flex-start; }
+  .source-inline { flex-wrap: wrap; }
   .modal-title { font-size: 20px; }
   .modal-input { font-size: 20px; }
   .filters { width: 100%; }

@@ -159,15 +159,27 @@ async function safeProviderCall(task, timeoutMs = 12000) {
   return Promise.race([task, timeout]);
 }
 
+function resolveSources(sources) {
+  if (!Array.isArray(sources) || !sources.length) return SOURCE_PRIORITY;
+  const selected = new Set(
+    sources
+      .map((s) => String(s || "").trim())
+      .filter((s) => SOURCE_PRIORITY.includes(s))
+  );
+  if (!selected.size) return SOURCE_PRIORITY;
+  return SOURCE_PRIORITY.filter((s) => selected.has(s));
+}
+
 export function createListen1Client() {
   const cookieProvider = new CookieProvider();
   const httpClient = createHTTPClient(cookieProvider);
 
   return {
-    async searchAll(keyword) {
+    async searchAll(keyword, sources = SOURCE_PRIORITY) {
       const merged = [];
       const seen = new Set();
-      for (const source of SOURCE_PRIORITY) {
+      const sourceOrder = resolveSources(sources);
+      for (const source of sourceOrder) {
         if (source === "netease") {
           try {
             const data = await requestJson("https://music.163.com/api/search/get/", {

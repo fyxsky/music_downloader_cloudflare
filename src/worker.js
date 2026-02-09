@@ -50,6 +50,15 @@ function withCors(resp) {
 
 const listen1 = createListen1Client();
 
+function parseSourcesParam(raw) {
+  if (!raw) return undefined;
+  const list = String(raw)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length ? list : undefined;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -67,7 +76,8 @@ export default {
       if (pathname === "/api/search") {
         const s = searchParams.get("s") || "";
         if (!s.trim()) return json({ code: 400, message: "缺少参数 s" }, 400);
-        const songs = await listen1.searchAll(s);
+        const sources = parseSourcesParam(searchParams.get("sources"));
+        const songs = await listen1.searchAll(s, sources);
         return json({ code: 200, songs });
       }
 
@@ -85,6 +95,36 @@ export default {
         const resp = await fetch(source, { redirect: "follow" });
         if (!resp.ok) return json({ code: 404, message: "歌曲不存在或不可下载" }, 404);
         return withCors(resp);
+      }
+
+      if (pathname === "/api/probe") {
+        const id = searchParams.get("id");
+        if (!id) return json({ code: 400, message: "缺少参数 id" }, 400);
+        let source = "";
+        try {
+          source = await listen1.bootstrapTrack(id);
+        } catch (err) {
+          const msg = err?.message || "不可下载";
+          if (msg.includes("VIP")) {
+            return json({ code: 200, downloadable: false, vip: true, message: msg });
+          }
+          return json({ code: 200, downloadable: false, vip: false, message: msg });
+        }
+
+        let resp = await fetch(source, { method: "HEAD", redirect: "follow" });
+        if (!resp.ok || resp.status === 405) {
+          resp = await fetch(source, {
+            method: "GET",
+            headers: { Range: "bytes=0-1" },
+            redirect: "follow"
+          });
+        }
+        return json({
+          code: 200,
+          downloadable: resp.ok,
+          vip: false,
+          status: resp.status
+        });
       }
 
       if (pathname === "/api/fetch") {

@@ -15,6 +15,7 @@ const modalBody = document.getElementById("modalBody");
 const modalInput = document.getElementById("modalInput");
 const modalCancel = document.getElementById("modalCancel");
 const modalOk = document.getElementById("modalOk");
+const sourceInputs = Array.from(document.querySelectorAll("input[name='apiSources']"));
 
 const statTotal = document.getElementById("statTotal");
 const statDone = document.getElementById("statDone");
@@ -32,6 +33,7 @@ let stopRequested = false;
 let pauseWaiters = [];
 let modalResolver = null;
 let modalMode = "alert";
+let selectedSourceList = [];
 
 function now() {
   const d = new Date();
@@ -66,6 +68,10 @@ function concurrency() {
   const n = Number(document.querySelector("input[name='concurrencyMode']:checked")?.value || 1);
   if (!Number.isInteger(n) || n < 1) return 1;
   return n;
+}
+
+function selectedSources() {
+  return sourceInputs.filter((el) => el.checked).map((el) => el.value);
 }
 
 function setPaused(paused) {
@@ -267,7 +273,7 @@ function primaryArtistName(artist) {
   return (artist || "").split(/[\/、，,&]/)[0].trim();
 }
 
-async function searchCandidates(name, artist) {
+async function searchCandidates(name, artist, sources) {
   const queries = [];
   const q1 = `${name} ${artist}`.trim();
   const q2 = `${name}`.trim();
@@ -281,7 +287,7 @@ async function searchCandidates(name, artist) {
   const seen = new Set();
   for (const q of queries) {
     try {
-      const { songs } = await apiJson("/api/search", { s: q });
+      const { songs } = await apiJson("/api/search", { s: q, sources: sources.join(",") });
       for (const s of songs || []) {
         if (!s?.id || seen.has(s.id)) continue;
         seen.add(s.id);
@@ -292,6 +298,21 @@ async function searchCandidates(name, artist) {
     }
   }
   return merged;
+}
+
+async function probeCandidateDownloadable(songId) {
+  try {
+    const data = await apiJson("/api/probe", { id: songId });
+    return {
+      downloadable: Boolean(data.downloadable),
+      vip: Boolean(data.vip)
+    };
+  } catch (err) {
+    return {
+      downloadable: false,
+      vip: (err?.message || "").includes("VIP")
+    };
+  }
 }
 
 async function chooseCandidates(name, artist, candidates) {
@@ -306,7 +327,16 @@ async function chooseCandidates(name, artist, candidates) {
 
   if (m === "manual") {
     const options = sameName.slice(0, 10);
-    const html = `<div class="option-list">${options
+    const probeResults = await Promise.all(options.map((s) => probeCandidateDownloadable(s.id)));
+    const downloadableOptions = options.filter((_, i) => probeResults[i].downloadable);
+    const vipCount = probeResults.filter((r) => r.vip).length;
+
+    if (!downloadableOptions.length) {
+      if (vipCount === options.length) throw new Error("手动候选均为VIP不可下载");
+      throw new Error("手动候选均不可下载");
+    }
+
+    const html = `<div class="option-list">${downloadableOptions
       .map(
         (s, i) =>
           `<label class="option-item"><input type="radio" name="manualPick" value="${i}" ${i === 0 ? "checked" : ""} /><span>${i + 1}. ${escapeHtml(s.name)} - ${escapeHtml(artistList(s))}</span></label>`
@@ -324,10 +354,10 @@ async function chooseCandidates(name, artist, candidates) {
       cancelText: "取消"
     });
     const idx = Number(val);
-    if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= downloadableOptions.length) {
       throw new Error("手动选择取消");
     }
-    const selected = options[idx];
+    const selected = downloadableOptions[idx];
     return [selected];
   }
 
@@ -394,7 +424,7 @@ async function processOne(row, idx) {
   updateRowStatus(row, "搜索中...");
   log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
 
-  const songs = await searchCandidates(row.name, row.artist);
+  const songs = await searchCandidates(row.name, row.artist, selectedSourceList);
   const candidates = await chooseCandidates(row.name, row.artist, songs);
   let picked = null;
   let mp3Buf = null;
@@ -519,6 +549,11 @@ async function runAll() {
     await themedAlert("请先选择有效 CSV 文件");
     return;
   }
+  selectedSourceList = selectedSources();
+  if (!selectedSourceList.length) {
+    await themedAlert("请至少选择一个 API 源");
+    return;
+  }
 
   isRunning = true;
   stopRequested = false;
@@ -532,7 +567,7 @@ async function runAll() {
   if (m === "manual" && userConcurrency > 1) {
     log("手动模式下已自动切换为单并发，避免多弹窗冲突");
   }
-  log(`开始处理，共 ${rows.length} 首，匹配模式：${m}，并发：${workerCount}，输出模式：本地 ZIP（30 首/包）`);
+  log(`开始处理，共 ${rows.length} 首，匹配模式：${m}，并发：${workerCount}，音源：${selectedSourceList.join("/")}`);
   const localBatchFiles = [];
   let batchNo = 0;
   let nextIndex = 0;
@@ -585,6 +620,7 @@ async function runAll() {
     log(stopRequested ? "任务已停止" : "任务结束");
   } finally {
     isRunning = false;
+    selectedSourceList = [];
     setPaused(false);
     startBtn.disabled = false;
     pauseBtn.disabled = true;
