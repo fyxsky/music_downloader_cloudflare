@@ -40,7 +40,7 @@
         <div class="match-row">
           <label class="switch-line">
             <input id="uploadR2" type="checkbox" checked />
-            <span>上传到 R2（避免每首弹出保存框）</span>
+            <span>上传到 R2（关闭后每 30 首自动打包 ZIP 下载）</span>
           </label>
         </div>
       </section>
@@ -110,6 +110,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/browser-id3-writer@6/dist/browser-id3-writer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

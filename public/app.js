@@ -13,6 +13,7 @@ const statFail = document.getElementById("statFail");
 const progressFill = document.getElementById("progressFill");
 const progressText = document.getElementById("progressText");
 const logBox = document.getElementById("logBox");
+const ZIP_BATCH_SIZE = 30;
 
 let rows = [];
 
@@ -215,6 +216,26 @@ function triggerDownload(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+async function downloadZipBatch(files, batchNo) {
+  if (!files.length) return;
+  if (!window.JSZip) {
+    throw new Error("JSZip 未加载");
+  }
+  const zip = new window.JSZip();
+  for (const item of files) {
+    zip.file(item.filename, item.blob);
+  }
+  log(`正在生成第 ${batchNo} 个 ZIP（${files.length} 首）...`);
+  const zipBlob = await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+  const zipName = `music_batch_${String(batchNo).padStart(2, "0")}_${files.length}首.zip`;
+  triggerDownload(zipBlob, zipName);
+  log(`第 ${batchNo} 个 ZIP 已下载：${zipName}`);
+}
+
 function updateRowStatus(row, status) {
   row.status = status;
   render();
@@ -276,18 +297,10 @@ async function processOne(row, idx) {
   }
 
   const safe = `${metaName}-${metaArtist}`.replace(/[\\/:*?"<>|]/g, "_");
-  if (uploadR2.checked) {
-    updateRowStatus(row, "上传到 R2...");
-    const url = await uploadBlobToR2(outputBlob, `${safe}.mp3`);
-    row.cloudUrl = url;
-    updateRowStatus(row, "完成(云端)");
-    log(`#${idx + 1} ${row.name}：已上传到 R2`);
-  } else {
-    row.cloudUrl = "";
-    triggerDownload(outputBlob, `${safe}.mp3`);
-    updateRowStatus(row, "完成");
-    log(`#${idx + 1} ${row.name}：完成`);
-  }
+  return {
+    blob: outputBlob,
+    filename: `${safe}.mp3`
+  };
 }
 
 async function runAll() {
@@ -298,16 +311,40 @@ async function runAll() {
 
   startBtn.disabled = true;
   log(`开始处理，共 ${rows.length} 首，匹配模式：${mode()}，输出模式：${uploadR2.checked ? "R2 云端" : "本地下载"}`);
+  const localBatchFiles = [];
+  let batchNo = 0;
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     try {
-      await processOne(row, i);
+      const result = await processOne(row, i);
+      if (uploadR2.checked) {
+        updateRowStatus(row, "上传到 R2...");
+        const url = await uploadBlobToR2(result.blob, result.filename);
+        row.cloudUrl = url;
+        updateRowStatus(row, "完成(云端)");
+        log(`#${i + 1} ${row.name}：已上传到 R2`);
+      } else {
+        row.cloudUrl = "";
+        localBatchFiles.push(result);
+        updateRowStatus(row, "完成");
+        log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
+        if (localBatchFiles.length >= ZIP_BATCH_SIZE) {
+          batchNo += 1;
+          await downloadZipBatch(localBatchFiles, batchNo);
+          localBatchFiles.length = 0;
+        }
+      }
     } catch (err) {
       const msg = err?.message || "处理异常";
       updateRowStatus(row, `失败: ${msg}`);
       log(`#${i + 1} ${row.name}：失败 - ${msg}`);
     }
+  }
+
+  if (!uploadR2.checked && localBatchFiles.length > 0) {
+    batchNo += 1;
+    await downloadZipBatch(localBatchFiles, batchNo);
   }
 
   startBtn.disabled = false;
