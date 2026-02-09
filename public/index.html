@@ -31,7 +31,7 @@
           </div>
         </div>
 
-        <div class="match-row">
+        <div class="match-row match-main">
           <div class="group-inline">
             <span class="label">匹配模式</span>
             <div class="segmented" role="radiogroup" aria-label="匹配模式">
@@ -41,9 +41,9 @@
               <label for="modeManual">手动</label>
             </div>
           </div>
-          <div class="group-inline">
+          <div class="group-inline group-right">
             <span class="label">并发数</span>
-            <div class="segmented" role="radiogroup" aria-label="并发数">
+            <div class="segmented segmented-3" role="radiogroup" aria-label="并发数">
               <input type="radio" id="cc1" name="concurrencyMode" value="1" checked />
               <label for="cc1">1</label>
               <input type="radio" id="cc2" name="concurrencyMode" value="2" />
@@ -52,6 +52,8 @@
               <label for="cc4">4</label>
             </div>
           </div>
+        </div>
+        <div class="match-row">
           <span class="hint">自动：优先精确歌手，失败后同歌名内自动回退可下载条目</span>
         </div>
         <div class="match-row">

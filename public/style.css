@@ -171,6 +171,15 @@ body {
   gap: 8px;
 }
 
+.group-right {
+  margin-left: auto;
+}
+
+.match-main {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
 .label {
   color: #a5b2d2;
   font-weight: 700;
@@ -195,11 +204,11 @@ body {
 }
 
 .segmented {
-  display: inline-grid;
-  grid-template-columns: repeat(2, auto);
+  display: inline-flex;
   border: 1px solid #31405f;
   border-radius: 999px;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .segmented input {
@@ -214,6 +223,8 @@ body {
   cursor: pointer;
   user-select: none;
   font-weight: 700;
+  min-width: 56px;
+  text-align: center;
 }
 
 .segmented label:last-of-type {
@@ -416,6 +427,8 @@ tbody tr:nth-child(even) td {
   .action-buttons .primary-btn,
   .action-buttons .ghost-btn,
   .action-buttons .danger-btn { flex: 1; }
+  .match-main { flex-wrap: wrap; }
+  .group-right { margin-left: 0; }
   .filters { width: 100%; }
   .filters input { flex: 1; min-width: 120px; }
 }
