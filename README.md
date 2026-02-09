@@ -8,7 +8,7 @@
 
 ## 一键部署到 Cloudflare
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/fyxsky/music_downloader_cloudflare.git&branch=main)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/fyxsky/music_downloader_cloudflare&branch=main)
 
 ## 技术方案
 
