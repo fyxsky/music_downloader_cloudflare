@@ -1,3 +1,5 @@
+import { ID3Writer as BrowserID3Writer } from "/vendor/browser-id3-writer.mjs";
+
 const csvInput = document.getElementById("csvInput");
 const startBtn = document.getElementById("startBtn");
 const clearLogBtn = document.getElementById("clearLogBtn");
@@ -292,26 +294,38 @@ async function processOne(row, idx) {
   const detail = detailData.song || {};
   const lyric = lyricData.lyric || "";
   let coverStatus = "无封面";
-  let lyricStatus = lyric ? "已写入" : "无歌词";
+  let lyricStatus = lyric ? "未写入" : "无歌词";
   const metaName = (detail.name || picked.name || row.name || "未知歌曲").trim();
   const metaArtist =
     ((detail.ar || detail.artists || []).map((a) => a?.name || "").filter(Boolean).join(" / ") || artistList(picked) || row.artist || "未知歌手").trim();
+  const picUrl = detail.al?.picUrl || detail.album?.picUrl;
+  if (picUrl) coverStatus = "未写入";
 
   let outputBlob;
-  if (window.ID3Writer) {
-    const writer = new ID3Writer(mp3Buf);
+  if (BrowserID3Writer) {
+    const writer = new BrowserID3Writer(mp3Buf);
     writer
       .setFrame("TIT2", metaName)
-      .setFrame("TPE1", [metaArtist])
+      .setFrame("TPE1", metaArtist.split("/").map((x) => x.trim()).filter(Boolean))
       .setFrame("TALB", detail.al?.name || detail.album?.name || "")
+      .setFrame("TPE2", metaArtist)
       .setFrame("COMM", {
         description: "",
         text: `Netease Song ID: ${picked.id}`
       });
 
-    if (lyric) writer.setFrame("USLT", { description: "", lyrics: lyric });
+    const year = new Date(detail.publishTime || detail.al?.publishTime || 0).getFullYear();
+    if (Number.isFinite(year) && year > 1900) {
+      writer.setFrame("TYER", year);
+    }
+    if (detail.no) writer.setFrame("TRCK", String(detail.no));
+    if (detail.cd) writer.setFrame("TPOS", String(detail.cd));
 
-    const picUrl = detail.al?.picUrl || detail.album?.picUrl;
+    if (lyric) {
+      writer.setFrame("USLT", { description: "", lyrics: lyric });
+      lyricStatus = "已写入";
+    }
+
     if (picUrl) {
       try {
         const imgBuf = await fetchArrayBuffer("/api/fetch", { url: picUrl });
@@ -330,6 +344,9 @@ async function processOne(row, idx) {
     writer.addTag();
     outputBlob = writer.getBlob();
   } else {
+    if (lyric) lyricStatus = "未写入";
+    if (picUrl) coverStatus = "未写入";
+    log(`#${idx + 1} ${row.name}：ID3 库未加载，已导出原始 MP3`);
     outputBlob = new Blob([mp3Buf], { type: "audio/mpeg" });
   }
 
