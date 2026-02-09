@@ -248,7 +248,14 @@ export function createListen1Client() {
     async bootstrapTrack(trackId) {
       if (String(trackId).startsWith("netrack_")) {
         const rawId = String(trackId).slice("netrack_".length);
-        return `https://music.163.com/song/media/outer/url?id=${rawId}.mp3`;
+        const data = await requestJson("https://music.163.com/api/song/enhance/player/url", {
+          id: rawId,
+          ids: `[${rawId}]`,
+          br: 320000
+        });
+        const item = data?.data?.[0];
+        if (!item?.url) throw new Error("VIP歌曲不可下载");
+        return item.url;
       }
       const provider = providerByTrackId(trackId);
       if (!provider?.bootstrapTrack) throw new Error("不支持的来源");

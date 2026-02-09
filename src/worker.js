@@ -28,6 +28,14 @@ const ALLOW_FETCH_HOSTS = new Set([
   "i2.hdslb.com"
 ]);
 
+function isLikelyAudioResponse(resp) {
+  const ct = (resp.headers.get("content-type") || "").toLowerCase();
+  if (!ct) return true;
+  if (ct.includes("audio/") || ct.includes("application/octet-stream")) return true;
+  if (ct.includes("text/html") || ct.includes("application/json") || ct.includes("text/plain")) return false;
+  return true;
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -94,6 +102,9 @@ export default {
         const source = await listen1.bootstrapTrack(id);
         const resp = await fetch(source, { redirect: "follow" });
         if (!resp.ok) return json({ code: 404, message: "歌曲不存在或不可下载" }, 404);
+        if (!isLikelyAudioResponse(resp)) {
+          return json({ code: 404, message: "返回的不是音频资源" }, 404);
+        }
         return withCors(resp);
       }
 
@@ -117,6 +128,14 @@ export default {
             method: "GET",
             headers: { Range: "bytes=0-1" },
             redirect: "follow"
+          });
+        }
+        if (!isLikelyAudioResponse(resp)) {
+          return json({
+            code: 200,
+            downloadable: false,
+            vip: false,
+            status: resp.status
           });
         }
         return json({
