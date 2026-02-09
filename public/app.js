@@ -238,11 +238,6 @@ async function apiJson(path, params = {}) {
   return data;
 }
 
-async function isPlayable(id) {
-  const data = await apiJson("/api/playable", { id });
-  return !!data.playable;
-}
-
 function artistList(song) {
   return (song.artists || []).map((a) => a.name || "").join(" / ");
 }
@@ -285,19 +280,11 @@ async function searchCandidates(name, artist) {
   return merged;
 }
 
-async function chooseCandidate(name, artist, candidates) {
+async function chooseCandidates(name, artist, candidates) {
   if (!candidates.length) throw new Error("搜索不到");
   const m = mode();
   const sameName = candidates.filter((s) => isSameSongName(name, s.name));
   const exactArtist = (list) => list.filter((s) => (s.artists || []).some((a) => normalize(a.name) === normalize(artist)));
-
-  const pickPlayable = async (ordered) => {
-    if (!ordered.length) return null;
-    for (const item of ordered) {
-      if (await isPlayable(item.id)) return item;
-    }
-    return null;
-  };
 
   if (!sameName.length) {
     throw new Error("自动匹配失败(无同名歌曲)");
@@ -316,18 +303,12 @@ async function chooseCandidate(name, artist, candidates) {
       throw new Error("手动选择取消");
     }
     const selected = options[idx];
-    if (await isPlayable(selected.id)) return selected;
-    const fallback = await pickPlayable(options.filter((s) => s.id !== selected.id));
-    if (fallback) return fallback;
-    throw new Error("手动选择结果不可下载");
+    return [selected, ...options.filter((s) => s.id !== selected.id)];
   }
 
   const sameNameExact = exactArtist(sameName);
   const sameNameRest = sameName.filter((s) => !sameNameExact.includes(s));
-  const ordered = [...sameNameExact, ...sameNameRest];
-  const playable = await pickPlayable(ordered);
-  if (playable) return playable;
-  throw new Error("自动匹配失败(无可下载链接)");
+  return [...sameNameExact, ...sameNameRest];
 }
 
 async function fetchArrayBuffer(url, params) {
@@ -373,20 +354,47 @@ function updateRowStatus(row, status) {
   render();
 }
 
+function extractYear(detail) {
+  const stamps = [detail.publishTime, detail?.al?.publishTime, detail?.album?.publishTime];
+  for (const raw of stamps) {
+    const ts = Number(raw);
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+    const y = new Date(ts).getFullYear();
+    if (Number.isFinite(y) && y >= 1900 && y <= 2100) return y;
+  }
+  return null;
+}
+
 async function processOne(row, idx) {
   updateRowStatus(row, "搜索中...");
   log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
 
   const songs = await searchCandidates(row.name, row.artist);
-  const picked = await chooseCandidate(row.name, row.artist, songs);
+  const candidates = await chooseCandidates(row.name, row.artist, songs);
+  let picked = null;
+  let mp3Buf = null;
+  let detailData = null;
+  let lyricData = null;
+  let downloadErr = null;
 
-  updateRowStatus(row, "获取详情...");
-
-  const [detailData, lyricData, mp3Buf] = await Promise.all([
-    apiJson("/api/detail", { id: picked.id }),
-    apiJson("/api/lyric", { id: picked.id }),
-    fetchArrayBuffer("/api/download", { id: picked.id })
-  ]);
+  for (const c of candidates) {
+    try {
+      updateRowStatus(row, "下载中...");
+      const buf = await fetchArrayBuffer("/api/download", { id: c.id });
+      const [detail, lyric] = await Promise.all([apiJson("/api/detail", { id: c.id }), apiJson("/api/lyric", { id: c.id })]);
+      picked = c;
+      mp3Buf = buf;
+      detailData = detail;
+      lyricData = lyric;
+      break;
+    } catch (err) {
+      downloadErr = err;
+    }
+  }
+  if (!picked || !mp3Buf || !detailData || !lyricData) {
+    if (mode() === "manual") throw new Error("手动选择结果不可下载");
+    throw new Error(downloadErr?.message || "自动匹配失败(无可下载链接)");
+  }
 
   const detail = detailData.song || {};
   const lyric = lyricData.lyric || "";
@@ -418,8 +426,8 @@ async function processOne(row, idx) {
       albumArtistStatus = metaArtist;
     }
 
-    const year = new Date(detail.publishTime || detail.al?.publishTime || 0).getFullYear();
-    if (Number.isFinite(year) && year > 1900) {
+    const year = extractYear(detail);
+    if (year) {
       writer.setFrame("TYER", year);
       yearStatus = String(year);
     }
@@ -453,8 +461,8 @@ async function processOne(row, idx) {
     if (lyric) lyricStatus = "未写入";
     if (picUrl) coverStatus = "未写入";
     if (metaArtist) albumArtistStatus = "未写入";
-    const year = new Date(detail.publishTime || detail.al?.publishTime || 0).getFullYear();
-    if (Number.isFinite(year) && year > 1900) yearStatus = "未写入";
+    const year = extractYear(detail);
+    if (year) yearStatus = "未写入";
     if (detail.no) trackStatus = "未写入";
     log(`#${idx + 1} ${row.name}：ID3 库未加载，已导出原始 MP3`);
     outputBlob = new Blob([mp3Buf], { type: "audio/mpeg" });
