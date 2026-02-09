@@ -303,7 +303,7 @@ async function processOne(row, idx) {
     writer
       .setFrame("TIT2", metaName)
       .setFrame("TPE1", [metaArtist])
-      .setFrame("TALB", detail.album?.name || "")
+      .setFrame("TALB", detail.al?.name || detail.album?.name || "")
       .setFrame("COMM", {
         description: "",
         text: `Netease Song ID: ${picked.id}`
@@ -311,7 +311,7 @@ async function processOne(row, idx) {
 
     if (lyric) writer.setFrame("USLT", { description: "", lyrics: lyric });
 
-    const picUrl = detail.album?.picUrl;
+    const picUrl = detail.al?.picUrl || detail.album?.picUrl;
     if (picUrl) {
       try {
         const imgBuf = await fetchArrayBuffer("/api/fetch", { url: picUrl });
