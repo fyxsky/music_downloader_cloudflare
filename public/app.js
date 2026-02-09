@@ -60,6 +60,14 @@ function statusBadge(status) {
   return `<span class="badge ${cls}">${status}</span>`;
 }
 
+function metaBadge(text) {
+  const t = text || "-";
+  let cls = "idle";
+  if (t === "已写入") cls = "ok";
+  else if (t.includes("失败")) cls = "err";
+  return `<span class="badge ${cls}">${t}</span>`;
+}
+
 function filteredRows() {
   const nk = normalize(searchName.value);
   const ak = normalize(searchArtist.value);
@@ -78,6 +86,8 @@ function render() {
         <td>${i + 1}</td>
         <td title="${r.name}">${r.name}</td>
         <td title="${r.artist}">${r.artist}</td>
+        <td>${metaBadge(r.coverStatus)}</td>
+        <td>${metaBadge(r.lyricStatus)}</td>
         <td>${statusBadge(r.status)}</td>
       </tr>
     `)
@@ -114,7 +124,9 @@ function parseCsv(text) {
       return {
         name: (cols[nameIdx] || "").trim(),
         artist: (cols[artistIdx] || "").trim(),
-        status: "待处理"
+        status: "待处理",
+        coverStatus: "-",
+        lyricStatus: "-"
       };
     })
     .filter((r) => r.name);
@@ -279,6 +291,8 @@ async function processOne(row, idx) {
 
   const detail = detailData.song || {};
   const lyric = lyricData.lyric || "";
+  let coverStatus = "无封面";
+  let lyricStatus = lyric ? "已写入" : "无歌词";
   const metaName = (detail.name || picked.name || row.name || "未知歌曲").trim();
   const metaArtist =
     ((detail.ar || detail.artists || []).map((a) => a?.name || "").filter(Boolean).join(" / ") || artistList(picked) || row.artist || "未知歌手").trim();
@@ -306,7 +320,9 @@ async function processOne(row, idx) {
           data: imgBuf,
           description: "Cover"
         });
+        coverStatus = "已写入";
       } catch {
+        coverStatus = "获取失败";
         log(`#${idx + 1} ${row.name}：封面写入失败，已忽略`);
       }
     }
@@ -320,7 +336,9 @@ async function processOne(row, idx) {
   const safe = `${metaName}-${metaArtist}`.replace(/[\\/:*?"<>|]/g, "_");
   return {
     blob: outputBlob,
-    filename: `${safe}.mp3`
+    filename: `${safe}.mp3`,
+    coverStatus,
+    lyricStatus
   };
 }
 
@@ -360,6 +378,8 @@ async function runAll() {
       try {
         const result = await processOne(row, i);
         localBatchFiles.push(result);
+        row.coverStatus = result.coverStatus;
+        row.lyricStatus = result.lyricStatus;
         updateRowStatus(row, "完成");
         log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
         await flushBatch();
@@ -391,6 +411,8 @@ csvInput.addEventListener("change", async (e) => {
     rows = parseCsv(text);
     rows.forEach((r) => {
       r.status = "待处理";
+      r.coverStatus = "-";
+      r.lyricStatus = "-";
     });
     clearLogs();
     log(`已加载 CSV：${file.name}，共 ${rows.length} 条`);
