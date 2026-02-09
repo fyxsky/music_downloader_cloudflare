@@ -246,7 +246,7 @@ function isSameSongName(expected, actual) {
   const a = normalize(expected);
   const b = normalize(actual);
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  return a === b;
 }
 
 function primaryArtistName(artist) {
