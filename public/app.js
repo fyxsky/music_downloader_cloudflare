@@ -308,7 +308,7 @@ async function chooseCandidates(name, artist, candidates) {
       throw new Error("手动选择取消");
     }
     const selected = options[idx];
-    return [selected, ...options.filter((s) => s.id !== selected.id)];
+    return [selected];
   }
 
   const sameNameExact = exactArtist(sameName);
