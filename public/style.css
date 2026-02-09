@@ -25,6 +25,10 @@ body {
   font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .bg-noise {
   pointer-events: none;
   position: fixed;
@@ -421,6 +425,60 @@ tbody tr:nth-child(even) td {
   word-break: break-word;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 8, 18, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  padding: 16px;
+}
+
+.modal-card {
+  width: min(680px, 100%);
+  border: 1px solid #2c3a59;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #121a2a, #0e1524);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+  padding: 16px;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #d9e8ff;
+}
+
+.modal-body {
+  margin-top: 10px;
+  color: #a9b7d7;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  max-height: 48vh;
+  overflow: auto;
+}
+
+.modal-input {
+  width: 100%;
+  margin-top: 14px;
+  border-radius: 12px;
+  border: 1px solid #344a73;
+  background: #0b111f;
+  color: #e6f1ff;
+  padding: 10px 12px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.modal-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (max-width: 860px) {
   .hero-text h1 { font-size: 30px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
@@ -431,6 +489,8 @@ tbody tr:nth-child(even) td {
   .action-buttons .danger-btn { flex: 1; }
   .match-main { flex-wrap: wrap; }
   .group-right { margin-left: 0; }
+  .modal-title { font-size: 20px; }
+  .modal-input { font-size: 20px; }
   .filters { width: 100%; }
   .filters input { flex: 1; min-width: 120px; }
 }

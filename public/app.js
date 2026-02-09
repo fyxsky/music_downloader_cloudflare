@@ -8,6 +8,12 @@ const clearLogBtn = document.getElementById("clearLogBtn");
 const tbody = document.getElementById("tbody");
 const searchName = document.getElementById("searchName");
 const searchArtist = document.getElementById("searchArtist");
+const modalOverlay = document.getElementById("modalOverlay");
+const modalTitle = document.getElementById("modalTitle");
+const modalBody = document.getElementById("modalBody");
+const modalInput = document.getElementById("modalInput");
+const modalCancel = document.getElementById("modalCancel");
+const modalOk = document.getElementById("modalOk");
 
 const statTotal = document.getElementById("statTotal");
 const statDone = document.getElementById("statDone");
@@ -23,6 +29,7 @@ let isRunning = false;
 let isPaused = false;
 let stopRequested = false;
 let pauseWaiters = [];
+let modalResolver = null;
 
 function now() {
   const d = new Date();
@@ -75,6 +82,62 @@ async function waitIfPaused() {
       pauseWaiters.push(resolve);
     });
   }
+}
+
+function showModal({ title, body, showInput = false, inputValue = "", inputPlaceholder = "", showCancel = true, okText = "确定", cancelText = "取消" }) {
+  if (modalResolver) {
+    return Promise.resolve(null);
+  }
+  modalTitle.textContent = title || "提示";
+  modalBody.textContent = body || "";
+  modalOk.textContent = okText;
+  modalCancel.textContent = cancelText;
+  modalCancel.classList.toggle("hidden", !showCancel);
+  modalInput.classList.toggle("hidden", !showInput);
+  modalInput.value = inputValue || "";
+  modalInput.placeholder = inputPlaceholder || "";
+  modalOverlay.classList.remove("hidden");
+  modalOverlay.setAttribute("aria-hidden", "false");
+
+  return new Promise((resolve) => {
+    modalResolver = resolve;
+    setTimeout(() => {
+      if (showInput) modalInput.focus();
+      else modalOk.focus();
+    }, 0);
+  });
+}
+
+function closeModal(result) {
+  if (!modalResolver) return;
+  const resolve = modalResolver;
+  modalResolver = null;
+  modalOverlay.classList.add("hidden");
+  modalOverlay.setAttribute("aria-hidden", "true");
+  resolve(result);
+}
+
+async function themedAlert(message, title = "提示") {
+  await showModal({
+    title,
+    body: message,
+    showInput: false,
+    showCancel: false,
+    okText: "关闭"
+  });
+}
+
+async function themedPrompt({ title, body, defaultValue = "" }) {
+  return showModal({
+    title,
+    body,
+    showInput: true,
+    inputValue: defaultValue,
+    showCancel: true,
+    okText: "确定",
+    cancelText: "取消",
+    inputPlaceholder: "请输入序号"
+  });
 }
 
 function statusBadge(status) {
@@ -244,7 +307,11 @@ async function chooseCandidate(name, artist, candidates) {
   if (m === "manual") {
     const options = sameName.slice(0, 10);
     const text = options.map((s, i) => `${i + 1}. ${s.name} - ${artistList(s)}`).join("\n");
-    const val = prompt(`请选择序号：\n${text}`, "1");
+    const val = await themedPrompt({
+      title: "请选择序号",
+      body: text,
+      defaultValue: "1"
+    });
     const idx = Number(val) - 1;
     if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
       throw new Error("手动选择取消");
@@ -417,7 +484,7 @@ async function processOne(row, idx) {
 async function runAll() {
   if (isRunning) return;
   if (!rows.length) {
-    alert("请先选择有效 CSV 文件");
+    await themedAlert("请先选择有效 CSV 文件");
     return;
   }
 
@@ -513,7 +580,7 @@ csvInput.addEventListener("change", async (e) => {
     log(`已加载 CSV：${file.name}，共 ${rows.length} 条`);
     render();
   } catch (err) {
-    alert(err.message || "CSV 读取失败");
+    await themedAlert(err.message || "CSV 读取失败");
   }
 });
 
@@ -535,6 +602,26 @@ stopBtn.addEventListener("click", () => {
   pauseBtn.disabled = true;
   stopBtn.disabled = true;
   log("收到停止指令，当前进行中的任务完成后将停止");
+});
+modalOk.addEventListener("click", () => {
+  closeModal(modalInput.classList.contains("hidden") ? true : modalInput.value.trim());
+});
+modalCancel.addEventListener("click", () => {
+  closeModal(null);
+});
+modalOverlay.addEventListener("click", (e) => {
+  if (e.target === modalOverlay) closeModal(null);
+});
+document.addEventListener("keydown", (e) => {
+  if (modalOverlay.classList.contains("hidden")) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeModal(null);
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    closeModal(modalInput.classList.contains("hidden") ? true : modalInput.value.trim());
+  }
 });
 searchName.addEventListener("input", render);
 searchArtist.addEventListener("input", render);
