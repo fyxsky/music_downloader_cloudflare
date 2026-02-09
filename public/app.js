@@ -10,6 +10,7 @@ const searchName = document.getElementById("searchName");
 const searchArtist = document.getElementById("searchArtist");
 const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
+const modalSub = document.getElementById("modalSub");
 const modalBody = document.getElementById("modalBody");
 const modalInput = document.getElementById("modalInput");
 const modalCancel = document.getElementById("modalCancel");
@@ -84,11 +85,13 @@ async function waitIfPaused() {
   }
 }
 
-function showModal({ title, body, showInput = false, inputValue = "", inputPlaceholder = "", showCancel = true, okText = "确定", cancelText = "取消" }) {
+function showModal({ title, subtitle = "", body, showInput = false, inputValue = "", inputPlaceholder = "", showCancel = true, okText = "确定", cancelText = "取消" }) {
   if (modalResolver) {
     return Promise.resolve(null);
   }
   modalTitle.textContent = title || "提示";
+  modalSub.textContent = subtitle || "";
+  modalSub.classList.toggle("hidden", !subtitle);
   modalBody.textContent = body || "";
   modalOk.textContent = okText;
   modalCancel.textContent = cancelText;
@@ -127,9 +130,10 @@ async function themedAlert(message, title = "提示") {
   });
 }
 
-async function themedPrompt({ title, body, defaultValue = "" }) {
+async function themedPrompt({ title, subtitle = "", body, defaultValue = "" }) {
   return showModal({
     title,
+    subtitle,
     body,
     showInput: true,
     inputValue: defaultValue,
@@ -295,6 +299,7 @@ async function chooseCandidates(name, artist, candidates) {
     const text = options.map((s, i) => `${i + 1}. ${s.name} - ${artistList(s)}`).join("\n");
     const val = await themedPrompt({
       title: "请选择序号",
+      subtitle: `目标歌曲：${name}\n目标歌手：${artist}`,
       body: text,
       defaultValue: "1"
     });
@@ -605,9 +610,6 @@ modalOk.addEventListener("click", () => {
 });
 modalCancel.addEventListener("click", () => {
   closeModal(null);
-});
-modalOverlay.addEventListener("click", (e) => {
-  if (e.target === modalOverlay) closeModal(null);
 });
 document.addEventListener("keydown", (e) => {
   if (modalOverlay.classList.contains("hidden")) return;
