@@ -151,8 +151,9 @@ function statusBadge(status) {
 function metaBadge(text) {
   const t = text || "-";
   let cls = "idle";
-  if (t === "已写入") cls = "ok";
-  else if (t.includes("失败")) cls = "err";
+  if (t.includes("失败")) cls = "err";
+  else if (t === "-" || t === "无数据" || t === "无封面" || t === "无歌词" || t === "未写入") cls = "idle";
+  else cls = "ok";
   return `<span class="badge ${cls}">${t}</span>`;
 }
 
@@ -179,7 +180,6 @@ function render() {
         <td>${metaBadge(r.albumArtistStatus)}</td>
         <td>${metaBadge(r.yearStatus)}</td>
         <td>${metaBadge(r.trackStatus)}</td>
-        <td>${metaBadge(r.discStatus)}</td>
         <td>${statusBadge(r.status)}</td>
       </tr>
     `)
@@ -221,8 +221,7 @@ function parseCsv(text) {
         lyricStatus: "-",
         albumArtistStatus: "-",
         yearStatus: "-",
-        trackStatus: "-",
-        discStatus: "-"
+        trackStatus: "-"
       };
     })
     .filter((r) => r.name);
@@ -396,10 +395,9 @@ async function processOne(row, idx) {
   const metaName = (detail.name || picked.name || row.name || "未知歌曲").trim();
   const metaArtist =
     ((detail.ar || detail.artists || []).map((a) => a?.name || "").filter(Boolean).join(" / ") || artistList(picked) || row.artist || "未知歌手").trim();
-  let albumArtistStatus = metaArtist ? "未写入" : "无数据";
+  let albumArtistStatus = "无数据";
   let yearStatus = "无数据";
   let trackStatus = "无数据";
-  let discStatus = "无数据";
   const picUrl = detail.al?.picUrl || detail.album?.picUrl;
   if (picUrl) coverStatus = "未写入";
 
@@ -417,23 +415,18 @@ async function processOne(row, idx) {
       });
 
     if (metaArtist) {
-      albumArtistStatus = "已写入";
+      albumArtistStatus = metaArtist;
     }
 
     const year = new Date(detail.publishTime || detail.al?.publishTime || 0).getFullYear();
     if (Number.isFinite(year) && year > 1900) {
       writer.setFrame("TYER", year);
-      yearStatus = "已写入";
+      yearStatus = String(year);
     }
     if (detail.no) {
       writer.setFrame("TRCK", String(detail.no));
       trackStatus = "已写入";
     }
-    if (detail.cd) {
-      writer.setFrame("TPOS", String(detail.cd));
-      discStatus = "已写入";
-    }
-
     if (lyric) {
       writer.setFrame("USLT", { description: "", lyrics: lyric });
       lyricStatus = "已写入";
@@ -463,7 +456,6 @@ async function processOne(row, idx) {
     const year = new Date(detail.publishTime || detail.al?.publishTime || 0).getFullYear();
     if (Number.isFinite(year) && year > 1900) yearStatus = "未写入";
     if (detail.no) trackStatus = "未写入";
-    if (detail.cd) discStatus = "未写入";
     log(`#${idx + 1} ${row.name}：ID3 库未加载，已导出原始 MP3`);
     outputBlob = new Blob([mp3Buf], { type: "audio/mpeg" });
   }
@@ -476,8 +468,7 @@ async function processOne(row, idx) {
     lyricStatus,
     albumArtistStatus,
     yearStatus,
-    trackStatus,
-    discStatus
+    trackStatus
   };
 }
 
@@ -530,7 +521,6 @@ async function runAll() {
         row.albumArtistStatus = result.albumArtistStatus;
         row.yearStatus = result.yearStatus;
         row.trackStatus = result.trackStatus;
-        row.discStatus = result.discStatus;
         updateRowStatus(row, "完成");
         log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
         await flushBatch();
@@ -574,7 +564,6 @@ csvInput.addEventListener("change", async (e) => {
       r.albumArtistStatus = "-";
       r.yearStatus = "-";
       r.trackStatus = "-";
-      r.discStatus = "-";
     });
     clearLogs();
     log(`已加载 CSV：${file.name}，共 ${rows.length} 条`);
