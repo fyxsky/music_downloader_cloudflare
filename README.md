@@ -59,6 +59,7 @@ npm run deploy
 `GitHub 仓库 -> Settings -> Secrets and variables -> Actions -> New repository secret`
 
 完成后，每次推送到 `main` 分支都会自动部署到 Cloudflare。
+若未配置上述 Secrets，工作流会自动跳过部署且不会报失败（便于 fork 和一键部署测试）。
 
 如果需要手动触发，也可以在 `Actions` 页面执行 `Deploy to Cloudflare` 工作流（`workflow_dispatch`）。
 
