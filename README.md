@@ -6,6 +6,10 @@
 - 匹配模式：`精准` / `模糊` / `手动`
 - 下载 MP3 后在浏览器端写入 ID3（标题、歌手、专辑、歌词、封面）
 
+## 一键部署到 Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/fyxsky/music_downloader_cloudflare)
+
 ## 技术方案
 
 - Cloudflare Workers：提供 `/api/*` 代理接口（搜索、详情、歌词、下载、封面抓取）
