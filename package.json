@@ -10,5 +10,11 @@
   },
   "devDependencies": {
     "wrangler": "^4.26.0"
+  },
+  "dependencies": {
+    "async": "^3.2.6",
+    "cheerio": "^1.2.0",
+    "entities": "^7.0.1",
+    "text-encoding": "^0.7.0"
   }
 }

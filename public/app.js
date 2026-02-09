@@ -394,13 +394,6 @@ function extractYear(detail) {
   return null;
 }
 
-function isVipSong(song) {
-  if (!song) return false;
-  const fee = Number(song.fee);
-  const payed = Number(song.payed);
-  return [1, 4, 8, 16].includes(fee) || payed === 1 || !!song.noCopyrightRcmd;
-}
-
 async function processOne(row, idx) {
   updateRowStatus(row, "搜索中...");
   log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
@@ -409,7 +402,6 @@ async function processOne(row, idx) {
   const candidates = await chooseCandidates(row.name, row.artist, songs);
   let picked = null;
   let mp3Buf = null;
-  let detailData = null;
   let lyricData = null;
   let downloadErr = null;
   let vipBlocked = false;
@@ -418,29 +410,30 @@ async function processOne(row, idx) {
     try {
       updateRowStatus(row, "下载中...");
       const buf = await fetchArrayBuffer("/api/download", { id: c.id });
-      const [detail, lyric] = await Promise.all([apiJson("/api/detail", { id: c.id }), apiJson("/api/lyric", { id: c.id })]);
+      const lyric = await apiJson("/api/lyric", { id: c.id });
       picked = c;
       mp3Buf = buf;
-      detailData = detail;
       lyricData = lyric;
       break;
     } catch (err) {
       downloadErr = err;
-      try {
-        const probe = await apiJson("/api/detail", { id: c.id });
-        if (isVipSong(probe?.song)) {
-          vipBlocked = true;
-        }
-      } catch {}
+      if ((err?.message || "").includes("VIP")) vipBlocked = true;
     }
   }
-  if (!picked || !mp3Buf || !detailData || !lyricData) {
+  if (!picked || !mp3Buf || !lyricData) {
     if (vipBlocked) throw new Error("VIP歌曲不可下载");
     if (mode() === "manual") throw new Error("手动选择结果不可下载");
     throw new Error(downloadErr?.message || "自动匹配失败(无可下载链接)");
   }
 
-  const detail = detailData.song || {};
+  const detail = {
+    name: picked.name || "",
+    artists: picked.artists || [],
+    album: picked.album || {},
+    al: picked.album || {},
+    publishTime: picked.album?.publishTime || null,
+    no: picked.trackNo || null
+  };
   const lyric = lyricData.lyric || "";
   let coverStatus = "无封面";
   let lyricStatus = lyric ? "未写入" : "无歌词";
@@ -463,7 +456,7 @@ async function processOne(row, idx) {
       .setFrame("TPE2", metaArtist)
       .setFrame("COMM", {
         description: "",
-        text: `Netease Song ID: ${picked.id}`
+        text: `Track ID: ${picked.id}`
       });
 
     if (metaArtist) {
