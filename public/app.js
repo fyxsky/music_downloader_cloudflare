@@ -2,11 +2,12 @@ import { ID3Writer as BrowserID3Writer } from "/vendor/browser-id3-writer.mjs";
 
 const csvInput = document.getElementById("csvInput");
 const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const stopBtn = document.getElementById("stopBtn");
 const clearLogBtn = document.getElementById("clearLogBtn");
 const tbody = document.getElementById("tbody");
 const searchName = document.getElementById("searchName");
 const searchArtist = document.getElementById("searchArtist");
-const concurrencySelect = document.getElementById("concurrencySelect");
 
 const statTotal = document.getElementById("statTotal");
 const statDone = document.getElementById("statDone");
@@ -18,6 +19,10 @@ const logBox = document.getElementById("logBox");
 const ZIP_BATCH_SIZE = 30;
 
 let rows = [];
+let isRunning = false;
+let isPaused = false;
+let stopRequested = false;
+let pauseWaiters = [];
 
 function now() {
   const d = new Date();
@@ -49,9 +54,27 @@ function mode() {
 }
 
 function concurrency() {
-  const n = Number(concurrencySelect?.value || 1);
+  const n = Number(document.querySelector("input[name='concurrencyMode']:checked")?.value || 1);
   if (!Number.isInteger(n) || n < 1) return 1;
   return n;
+}
+
+function setPaused(paused) {
+  isPaused = paused;
+  pauseBtn.textContent = paused ? "继续" : "暂停";
+  if (!paused) {
+    const waiters = pauseWaiters;
+    pauseWaiters = [];
+    waiters.forEach((resolve) => resolve());
+  }
+}
+
+async function waitIfPaused() {
+  while (isPaused && !stopRequested) {
+    await new Promise((resolve) => {
+      pauseWaiters.push(resolve);
+    });
+  }
 }
 
 function statusBadge(status) {
@@ -392,12 +415,18 @@ async function processOne(row, idx) {
 }
 
 async function runAll() {
+  if (isRunning) return;
   if (!rows.length) {
     alert("请先选择有效 CSV 文件");
     return;
   }
 
+  isRunning = true;
+  stopRequested = false;
+  setPaused(false);
   startBtn.disabled = true;
+  pauseBtn.disabled = false;
+  stopBtn.disabled = false;
   const m = mode();
   const userConcurrency = concurrency();
   const workerCount = m === "manual" ? 1 : userConcurrency;
@@ -420,6 +449,8 @@ async function runAll() {
 
   const workerLoop = async () => {
     while (true) {
+      await waitIfPaused();
+      if (stopRequested) return;
       const i = nextIndex;
       nextIndex += 1;
       if (i >= rows.length) return;
@@ -437,6 +468,7 @@ async function runAll() {
         log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
         await flushBatch();
       } catch (err) {
+        if (stopRequested) return;
         const msg = err?.message || "处理异常";
         updateRowStatus(row, `失败: ${msg}`);
         log(`#${i + 1} ${row.name}：失败 - ${msg}`);
@@ -444,16 +476,22 @@ async function runAll() {
     }
   };
 
-  await Promise.all(Array.from({ length: workerCount }, () => workerLoop()));
+  try {
+    await Promise.all(Array.from({ length: workerCount }, () => workerLoop()));
 
-  if (localBatchFiles.length > 0) {
-    batchNo += 1;
-    zipQueue = zipQueue.then(() => downloadZipBatch(localBatchFiles.splice(0), batchNo));
+    if (localBatchFiles.length > 0) {
+      batchNo += 1;
+      zipQueue = zipQueue.then(() => downloadZipBatch(localBatchFiles.splice(0), batchNo));
+    }
+    await zipQueue;
+    log(stopRequested ? "任务已停止" : "任务结束");
+  } finally {
+    isRunning = false;
+    setPaused(false);
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stopBtn.disabled = true;
   }
-  await zipQueue;
-
-  startBtn.disabled = false;
-  log("任务结束");
 }
 
 csvInput.addEventListener("change", async (e) => {
@@ -480,6 +518,24 @@ csvInput.addEventListener("change", async (e) => {
 });
 
 startBtn.addEventListener("click", runAll);
+pauseBtn.addEventListener("click", () => {
+  if (!isRunning) return;
+  if (isPaused) {
+    setPaused(false);
+    log("任务继续");
+  } else {
+    setPaused(true);
+    log("任务已暂停");
+  }
+});
+stopBtn.addEventListener("click", () => {
+  if (!isRunning) return;
+  stopRequested = true;
+  setPaused(false);
+  pauseBtn.disabled = true;
+  stopBtn.disabled = true;
+  log("收到停止指令，当前进行中的任务完成后将停止");
+});
 searchName.addEventListener("input", render);
 searchArtist.addEventListener("input", render);
 clearLogBtn.addEventListener("click", clearLogs);

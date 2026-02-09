@@ -24,29 +24,38 @@
             <span>选择 CSV（需包含：歌曲名、歌手）</span>
             <input id="csvInput" type="file" accept=".csv" />
           </label>
-          <button id="startBtn" class="primary-btn">开始处理</button>
+          <div class="action-buttons">
+            <button id="startBtn" class="primary-btn">开始处理</button>
+            <button id="pauseBtn" class="ghost-btn" disabled>暂停</button>
+            <button id="stopBtn" class="danger-btn" disabled>停止</button>
+          </div>
         </div>
 
         <div class="match-row">
-          <span class="label">匹配模式</span>
-          <div class="segmented" role="radiogroup" aria-label="匹配模式">
-            <input type="radio" id="modeAuto" name="matchMode" value="auto" checked />
-            <label for="modeAuto">自动</label>
-            <input type="radio" id="modeManual" name="matchMode" value="manual" />
-            <label for="modeManual">手动</label>
+          <div class="group-inline">
+            <span class="label">匹配模式</span>
+            <div class="segmented" role="radiogroup" aria-label="匹配模式">
+              <input type="radio" id="modeAuto" name="matchMode" value="auto" checked />
+              <label for="modeAuto">自动</label>
+              <input type="radio" id="modeManual" name="matchMode" value="manual" />
+              <label for="modeManual">手动</label>
+            </div>
+          </div>
+          <div class="group-inline">
+            <span class="label">并发数</span>
+            <div class="segmented" role="radiogroup" aria-label="并发数">
+              <input type="radio" id="cc1" name="concurrencyMode" value="1" checked />
+              <label for="cc1">1</label>
+              <input type="radio" id="cc2" name="concurrencyMode" value="2" />
+              <label for="cc2">2</label>
+              <input type="radio" id="cc4" name="concurrencyMode" value="4" />
+              <label for="cc4">4</label>
+            </div>
           </div>
           <span class="hint">自动：优先精确歌手，失败后同歌名内自动回退可下载条目</span>
         </div>
         <div class="match-row">
           <span class="hint">下载方式：本地下载（每 30 首自动打包为一个 ZIP）</span>
-        </div>
-        <div class="match-row">
-          <span class="label">并发数</span>
-          <select id="concurrencySelect">
-            <option value="1" selected>1（稳定）</option>
-            <option value="2">2（推荐）</option>
-            <option value="4">4（更快）</option>
-          </select>
         </div>
       </section>
 
