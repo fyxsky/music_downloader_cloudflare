@@ -4,6 +4,7 @@ const clearLogBtn = document.getElementById("clearLogBtn");
 const tbody = document.getElementById("tbody");
 const searchName = document.getElementById("searchName");
 const searchArtist = document.getElementById("searchArtist");
+const concurrencySelect = document.getElementById("concurrencySelect");
 
 const statTotal = document.getElementById("statTotal");
 const statDone = document.getElementById("statDone");
@@ -43,6 +44,12 @@ function normalize(text) {
 
 function mode() {
   return document.querySelector("input[name='matchMode']:checked")?.value || "auto";
+}
+
+function concurrency() {
+  const n = Number(concurrencySelect?.value || 1);
+  if (!Number.isInteger(n) || n < 1) return 1;
+  return n;
 }
 
 function statusBadge(status) {
@@ -324,33 +331,53 @@ async function runAll() {
   }
 
   startBtn.disabled = true;
-  log(`开始处理，共 ${rows.length} 首，匹配模式：${mode()}，输出模式：本地 ZIP（30 首/包）`);
+  const m = mode();
+  const userConcurrency = concurrency();
+  const workerCount = m === "manual" ? 1 : userConcurrency;
+  if (m === "manual" && userConcurrency > 1) {
+    log("手动模式下已自动切换为单并发，避免多弹窗冲突");
+  }
+  log(`开始处理，共 ${rows.length} 首，匹配模式：${m}，并发：${workerCount}，输出模式：本地 ZIP（30 首/包）`);
   const localBatchFiles = [];
   let batchNo = 0;
+  let nextIndex = 0;
+  let zipQueue = Promise.resolve();
 
-  for (let i = 0; i < rows.length; i += 1) {
-    const row = rows[i];
-    try {
-      const result = await processOne(row, i);
-      localBatchFiles.push(result);
-      updateRowStatus(row, "完成");
-      log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
-      if (localBatchFiles.length >= ZIP_BATCH_SIZE) {
-        batchNo += 1;
-        await downloadZipBatch(localBatchFiles, batchNo);
-        localBatchFiles.length = 0;
+  const flushBatch = async () => {
+    if (localBatchFiles.length < ZIP_BATCH_SIZE) return;
+    batchNo += 1;
+    const files = localBatchFiles.splice(0, ZIP_BATCH_SIZE);
+    zipQueue = zipQueue.then(() => downloadZipBatch(files, batchNo));
+    await zipQueue;
+  };
+
+  const workerLoop = async () => {
+    while (true) {
+      const i = nextIndex;
+      nextIndex += 1;
+      if (i >= rows.length) return;
+      const row = rows[i];
+      try {
+        const result = await processOne(row, i);
+        localBatchFiles.push(result);
+        updateRowStatus(row, "完成");
+        log(`#${i + 1} ${row.name}：已加入 ZIP 批次`);
+        await flushBatch();
+      } catch (err) {
+        const msg = err?.message || "处理异常";
+        updateRowStatus(row, `失败: ${msg}`);
+        log(`#${i + 1} ${row.name}：失败 - ${msg}`);
       }
-    } catch (err) {
-      const msg = err?.message || "处理异常";
-      updateRowStatus(row, `失败: ${msg}`);
-      log(`#${i + 1} ${row.name}：失败 - ${msg}`);
     }
-  }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => workerLoop()));
 
   if (localBatchFiles.length > 0) {
     batchNo += 1;
-    await downloadZipBatch(localBatchFiles, batchNo);
+    zipQueue = zipQueue.then(() => downloadZipBatch(localBatchFiles.splice(0), batchNo));
   }
+  await zipQueue;
 
   startBtn.disabled = false;
   log("任务结束");
