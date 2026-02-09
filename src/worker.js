@@ -1,6 +1,6 @@
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,PUT,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
@@ -39,6 +39,16 @@ function withCors(resp) {
     statusText: resp.statusText,
     headers
   });
+}
+
+function sanitizeFileName(name) {
+  return (name || "music.mp3").replace(/[\\/:*?"<>|]+/g, "_").trim() || "music.mp3";
+}
+
+function makeObjectKey(filename) {
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const rand = crypto.randomUUID().slice(0, 8);
+  return `${stamp}_${rand}_${sanitizeFileName(filename)}`;
 }
 
 async function requestJson(url, params = {}) {
@@ -133,6 +143,54 @@ export default {
         }
         const resp = await fetch(targetUrl.toString(), { headers: HEADERS });
         return withCors(resp);
+      }
+
+      if (pathname === "/api/r2/upload" && request.method === "PUT") {
+        if (!env.MUSIC_BUCKET) {
+          return json({ code: 503, message: "R2 未配置，请在 Worker 绑定 MUSIC_BUCKET" }, 503);
+        }
+        const inputFilename = sanitizeFileName(searchParams.get("filename") || "music.mp3");
+        const key = makeObjectKey(inputFilename);
+        const contentType = request.headers.get("content-type") || "audio/mpeg";
+        const body = await request.arrayBuffer();
+        if (!body || body.byteLength === 0) {
+          return json({ code: 400, message: "上传内容为空" }, 400);
+        }
+
+        await env.MUSIC_BUCKET.put(key, body, {
+          httpMetadata: {
+            contentType,
+            contentDisposition: `attachment; filename=\"${inputFilename}\"`
+          },
+          customMetadata: {
+            originalName: inputFilename
+          }
+        });
+
+        return json({
+          code: 200,
+          key,
+          download_url: `${url.origin}/api/r2/file?key=${encodeURIComponent(key)}`
+        });
+      }
+
+      if (pathname === "/api/r2/file") {
+        if (!env.MUSIC_BUCKET) {
+          return json({ code: 503, message: "R2 未配置，请在 Worker 绑定 MUSIC_BUCKET" }, 503);
+        }
+        const key = searchParams.get("key") || "";
+        if (!key) return json({ code: 400, message: "缺少参数 key" }, 400);
+
+        const obj = await env.MUSIC_BUCKET.get(key);
+        if (!obj) return json({ code: 404, message: "文件不存在" }, 404);
+
+        const headers = new Headers();
+        headers.set("Content-Type", obj.httpMetadata?.contentType || "application/octet-stream");
+        const fallbackName = obj.customMetadata?.originalName || key.split("_").slice(2).join("_") || "music.mp3";
+        headers.set("Content-Disposition", obj.httpMetadata?.contentDisposition || `attachment; filename=\"${fallbackName}\"`);
+        headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        Object.entries(CORS_HEADERS).forEach(([k, v]) => headers.set(k, v));
+        return new Response(obj.body, { status: 200, headers });
       }
 
       return json({ code: 404, message: "接口不存在" }, 404);

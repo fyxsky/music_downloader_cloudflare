@@ -4,6 +4,7 @@ const clearLogBtn = document.getElementById("clearLogBtn");
 const tbody = document.getElementById("tbody");
 const searchName = document.getElementById("searchName");
 const searchArtist = document.getElementById("searchArtist");
+const uploadR2 = document.getElementById("uploadR2");
 
 const statTotal = document.getElementById("statTotal");
 const statDone = document.getElementById("statDone");
@@ -71,6 +72,13 @@ function render() {
         <td title="${r.name}">${r.name}</td>
         <td title="${r.artist}">${r.artist}</td>
         <td>${statusBadge(r.status)}</td>
+        <td>
+          ${
+            r.cloudUrl
+              ? `<span class=\"link-actions\"><a class=\"link-anchor\" target=\"_blank\" href=\"${r.cloudUrl}\">打开</a><button class=\"link-btn\" data-copy=\"${r.cloudUrl}\">复制</button></span>`
+              : "-"
+          }
+        </td>
       </tr>
     `)
     .join("");
@@ -106,7 +114,8 @@ function parseCsv(text) {
       return {
         name: (cols[nameIdx] || "").trim(),
         artist: (cols[artistIdx] || "").trim(),
-        status: "待处理"
+        status: "待处理",
+        cloudUrl: ""
       };
     })
     .filter((r) => r.name);
@@ -172,6 +181,21 @@ async function fetchArrayBuffer(url, params) {
   const resp = await fetch(u);
   if (!resp.ok) throw new Error("下载失败");
   return resp.arrayBuffer();
+}
+
+async function uploadBlobToR2(blob, filename) {
+  const u = new URL("/api/r2/upload", location.origin);
+  u.searchParams.set("filename", filename);
+  const resp = await fetch(u, {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "audio/mpeg" },
+    body: blob
+  });
+  const data = await resp.json();
+  if (!resp.ok || data.code >= 400) {
+    throw new Error(data.message || "R2 上传失败");
+  }
+  return data.download_url;
 }
 
 function triggerDownload(blob, filename) {
@@ -244,9 +268,18 @@ async function processOne(row, idx) {
   }
 
   const safe = `${finalName}-${finalArtist}`.replace(/[\\/:*?"<>|]/g, "_");
-  triggerDownload(outputBlob, `${safe}.mp3`);
-  updateRowStatus(row, "完成");
-  log(`#${idx + 1} ${row.name}：完成`);
+  if (uploadR2.checked) {
+    updateRowStatus(row, "上传到 R2...");
+    const url = await uploadBlobToR2(outputBlob, `${safe}.mp3`);
+    row.cloudUrl = url;
+    updateRowStatus(row, "完成(云端)");
+    log(`#${idx + 1} ${row.name}：已上传到 R2`);
+  } else {
+    row.cloudUrl = "";
+    triggerDownload(outputBlob, `${safe}.mp3`);
+    updateRowStatus(row, "完成");
+    log(`#${idx + 1} ${row.name}：完成`);
+  }
 }
 
 async function runAll() {
@@ -256,7 +289,7 @@ async function runAll() {
   }
 
   startBtn.disabled = true;
-  log(`开始处理，共 ${rows.length} 首，匹配模式：${mode()}`);
+  log(`开始处理，共 ${rows.length} 首，匹配模式：${mode()}，输出模式：${uploadR2.checked ? "R2 云端" : "本地下载"}`);
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
@@ -294,5 +327,17 @@ startBtn.addEventListener("click", runAll);
 searchName.addEventListener("input", render);
 searchArtist.addEventListener("input", render);
 clearLogBtn.addEventListener("click", clearLogs);
+tbody.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const value = btn.getAttribute("data-copy");
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    log("已复制下载链接到剪贴板");
+  } catch {
+    alert("复制失败，请手动复制");
+  }
+});
 
 render();

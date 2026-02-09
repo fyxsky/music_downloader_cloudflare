@@ -159,6 +159,19 @@ body {
   font-size: 13px;
 }
 
+.switch-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #8fa1c8;
+  font-weight: 700;
+}
+
+.switch-line input {
+  width: 16px;
+  height: 16px;
+}
+
 .segmented {
   display: inline-grid;
   grid-template-columns: repeat(3, auto);
@@ -282,6 +295,32 @@ td {
   padding: 11px 12px;
   border-bottom: 1px solid #22304e;
   text-align: left;
+}
+
+.link-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.link-btn {
+  border: 1px solid #355281;
+  background: #101a2d;
+  color: #b9d5ff;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.link-anchor {
+  color: #78b4ff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.link-anchor:hover {
+  text-decoration: underline;
 }
 
 th {
