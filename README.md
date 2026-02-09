@@ -31,10 +31,20 @@ npm run deploy
 
 ## 通过 GitHub 自动部署（推荐）
 
-1. 将本仓库推送到 GitHub。
-2. 在 Cloudflare Dashboard 中创建 Worker 项目并连接该仓库。
-3. 构建命令：`npm install`
-4. 部署命令：`npm run deploy`
+本仓库已内置 GitHub Actions 自动部署工作流：`.github/workflows/deploy.yml`。
+
+你只需要在 GitHub 仓库中配置以下 Secrets：
+
+1. `CLOUDFLARE_API_TOKEN`
+2. `CLOUDFLARE_ACCOUNT_ID`
+
+配置路径：
+
+`GitHub 仓库 -> Settings -> Secrets and variables -> Actions -> New repository secret`
+
+完成后，每次推送到 `main` 分支都会自动部署到 Cloudflare。
+
+如果需要手动触发，也可以在 `Actions` 页面执行 `Deploy to Cloudflare` 工作流（`workflow_dispatch`）。
 
 ## 注意事项
 
