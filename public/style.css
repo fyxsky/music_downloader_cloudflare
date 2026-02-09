@@ -376,11 +376,17 @@ tbody tr:nth-child(even) td {
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 3px 10px;
   border-radius: 999px;
   font-weight: 700;
   border: 1px solid transparent;
+}
+
+.pill-cell {
+  text-align: center;
 }
 
 .badge.ok {

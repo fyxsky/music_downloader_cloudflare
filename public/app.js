@@ -175,12 +175,12 @@ function render() {
         <td>${i + 1}</td>
         <td title="${r.name}">${r.name}</td>
         <td title="${r.artist}">${r.artist}</td>
-        <td>${metaBadge(r.coverStatus)}</td>
-        <td>${metaBadge(r.lyricStatus)}</td>
-        <td>${metaBadge(r.albumArtistStatus)}</td>
-        <td>${metaBadge(r.yearStatus)}</td>
-        <td>${metaBadge(r.trackStatus)}</td>
-        <td>${statusBadge(r.status)}</td>
+        <td class="pill-cell">${metaBadge(r.coverStatus)}</td>
+        <td class="pill-cell">${metaBadge(r.lyricStatus)}</td>
+        <td class="pill-cell">${metaBadge(r.albumArtistStatus)}</td>
+        <td class="pill-cell">${metaBadge(r.yearStatus)}</td>
+        <td class="pill-cell">${metaBadge(r.trackStatus)}</td>
+        <td class="pill-cell">${statusBadge(r.status)}</td>
       </tr>
     `)
     .join("");
