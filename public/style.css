@@ -10,6 +10,7 @@
   --ok: #22c49a;
   --run: #48a0ff;
   --err: #ff587c;
+  --col-line: rgba(166, 176, 198, 0.28);
 }
 
 * {
@@ -334,6 +335,15 @@ td {
   padding: 11px 12px;
   border-bottom: 1px solid #22304e;
   text-align: left;
+}
+
+th {
+  text-align: center;
+}
+
+th:not(:last-child),
+td:not(:last-child) {
+  border-right: 1px solid var(--col-line);
 }
 
 .link-actions {
