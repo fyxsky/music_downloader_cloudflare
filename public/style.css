@@ -174,7 +174,7 @@ body {
 
 .segmented {
   display: inline-grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(2, auto);
   border: 1px solid #31405f;
   border-radius: 999px;
   overflow: hidden;

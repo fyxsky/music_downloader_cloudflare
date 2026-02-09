@@ -30,14 +30,12 @@
         <div class="match-row">
           <span class="label">匹配模式</span>
           <div class="segmented" role="radiogroup" aria-label="匹配模式">
-            <input type="radio" id="modePrecise" name="matchMode" value="precise" />
-            <label for="modePrecise">精准</label>
-            <input type="radio" id="modeFuzzy" name="matchMode" value="fuzzy" checked />
-            <label for="modeFuzzy">模糊</label>
+            <input type="radio" id="modeAuto" name="matchMode" value="auto" checked />
+            <label for="modeAuto">自动</label>
             <input type="radio" id="modeManual" name="matchMode" value="manual" />
             <label for="modeManual">手动</label>
           </div>
-          <span class="hint">手动模式会逐首弹出候选选择框</span>
+          <span class="hint">自动：优先精确歌手，失败后同歌名内自动回退可下载条目</span>
         </div>
         <div class="match-row">
           <label class="switch-line">

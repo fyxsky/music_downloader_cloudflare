@@ -42,7 +42,7 @@ function normalize(text) {
 }
 
 function mode() {
-  return document.querySelector("input[name='matchMode']:checked")?.value || "fuzzy";
+  return document.querySelector("input[name='matchMode']:checked")?.value || "auto";
 }
 
 function statusBadge(status) {
@@ -147,32 +147,39 @@ async function chooseCandidate(name, artist, candidates) {
   const sameName = candidates.filter((s) => normalize(s.name) === normalize(name));
   const exactArtist = (list) => list.filter((s) => (s.artists || []).some((a) => normalize(a.name) === normalize(artist)));
 
+  const pickPlayable = async (ordered) => {
+    if (!ordered.length) return null;
+    for (const item of ordered) {
+      if (await isPlayable(item.id)) return item;
+    }
+    return null;
+  };
+
+  if (!sameName.length) {
+    throw new Error("自动匹配失败(无同名歌曲)");
+  }
+
   if (m === "manual") {
-    const options = candidates.slice(0, 10);
+    const options = sameName.slice(0, 10);
     const text = options.map((s, i) => `${i + 1}. ${s.name} - ${artistList(s)}`).join("\n");
     const val = prompt(`请选择序号：\n${text}`, "1");
     const idx = Number(val) - 1;
     if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
       throw new Error("手动选择取消");
     }
-    return options[idx];
+    const selected = options[idx];
+    if (await isPlayable(selected.id)) return selected;
+    const fallback = await pickPlayable(options.filter((s) => s.id !== selected.id));
+    if (fallback) return fallback;
+    throw new Error("手动选择结果不可下载");
   }
 
-  let ordered = [];
-  if (m === "precise") {
-    ordered = exactArtist(sameName);
-    if (!ordered.length) throw new Error("精确匹配失败");
-  } else {
-    const sameNameExact = exactArtist(sameName);
-    const sameNameRest = sameName.filter((s) => !sameNameExact.includes(s));
-    const other = candidates.filter((s) => !sameName.includes(s));
-    ordered = [...sameNameExact, ...sameNameRest, ...other];
-  }
-
-  for (const item of ordered) {
-    if (await isPlayable(item.id)) return item;
-  }
-  return ordered[0];
+  const sameNameExact = exactArtist(sameName);
+  const sameNameRest = sameName.filter((s) => !sameNameExact.includes(s));
+  const ordered = [...sameNameExact, ...sameNameRest];
+  const playable = await pickPlayable(ordered);
+  if (playable) return playable;
+  throw new Error("自动匹配失败(无可下载链接)");
 }
 
 async function fetchArrayBuffer(url, params) {
@@ -230,15 +237,16 @@ async function processOne(row, idx) {
 
   const detail = detailData.song || {};
   const lyric = lyricData.lyric || "";
-  const finalName = (picked.name || row.name || "未知歌曲").trim();
-  const finalArtist = artistList(picked) || row.artist || "未知歌手";
+  const metaName = (detail.name || picked.name || row.name || "未知歌曲").trim();
+  const metaArtist =
+    ((detail.ar || detail.artists || []).map((a) => a?.name || "").filter(Boolean).join(" / ") || artistList(picked) || row.artist || "未知歌手").trim();
 
   let outputBlob;
   if (window.ID3Writer) {
     const writer = new ID3Writer(mp3Buf);
     writer
-      .setFrame("TIT2", finalName)
-      .setFrame("TPE1", [finalArtist])
+      .setFrame("TIT2", metaName)
+      .setFrame("TPE1", [metaArtist])
       .setFrame("TALB", detail.album?.name || "")
       .setFrame("COMM", {
         description: "",
@@ -267,7 +275,7 @@ async function processOne(row, idx) {
     outputBlob = new Blob([mp3Buf], { type: "audio/mpeg" });
   }
 
-  const safe = `${finalName}-${finalArtist}`.replace(/[\\/:*?"<>|]/g, "_");
+  const safe = `${metaName}-${metaArtist}`.replace(/[\\/:*?"<>|]/g, "_");
   if (uploadR2.checked) {
     updateRowStatus(row, "上传到 R2...");
     const url = await uploadBlobToR2(outputBlob, `${safe}.mp3`);
