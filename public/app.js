@@ -31,6 +31,7 @@ let isPaused = false;
 let stopRequested = false;
 let pauseWaiters = [];
 let modalResolver = null;
+let modalMode = "alert";
 
 function now() {
   const d = new Date();
@@ -85,20 +86,34 @@ async function waitIfPaused() {
   }
 }
 
-function showModal({ title, subtitle = "", body, showInput = false, inputValue = "", inputPlaceholder = "", showCancel = true, okText = "确定", cancelText = "取消" }) {
+function showModal({
+  title,
+  subtitle = "",
+  body,
+  htmlBody = "",
+  mode = "alert",
+  showInput = false,
+  inputValue = "",
+  inputPlaceholder = "",
+  showCancel = true,
+  okText = "确定",
+  cancelText = "取消"
+}) {
   if (modalResolver) {
     return Promise.resolve(null);
   }
   modalTitle.textContent = title || "提示";
   modalSub.textContent = subtitle || "";
   modalSub.classList.toggle("hidden", !subtitle);
-  modalBody.textContent = body || "";
+  if (htmlBody) modalBody.innerHTML = htmlBody;
+  else modalBody.textContent = body || "";
   modalOk.textContent = okText;
   modalCancel.textContent = cancelText;
   modalCancel.classList.toggle("hidden", !showCancel);
   modalInput.classList.toggle("hidden", !showInput);
   modalInput.value = inputValue || "";
   modalInput.placeholder = inputPlaceholder || "";
+  modalMode = mode;
   modalOverlay.classList.remove("hidden");
   modalOverlay.setAttribute("aria-hidden", "false");
 
@@ -130,18 +145,13 @@ async function themedAlert(message, title = "提示") {
   });
 }
 
-async function themedPrompt({ title, subtitle = "", body, defaultValue = "" }) {
-  return showModal({
-    title,
-    subtitle,
-    body,
-    showInput: true,
-    inputValue: defaultValue,
-    showCancel: true,
-    okText: "确定",
-    cancelText: "取消",
-    inputPlaceholder: "请输入序号"
-  });
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function statusBadge(status) {
@@ -296,14 +306,28 @@ async function chooseCandidates(name, artist, candidates) {
 
   if (m === "manual") {
     const options = sameName.slice(0, 10);
-    const text = options.map((s, i) => `${i + 1}. ${s.name} - ${artistList(s)}`).join("\n");
-    const val = await themedPrompt({
+    const html = options
+      .map(
+        (s, i) => `
+          <label class="option-item">
+            <input type="radio" name="manualPick" value="${i}" ${i === 0 ? "checked" : ""} />
+            <span>${i + 1}. ${escapeHtml(s.name)} - ${escapeHtml(artistList(s))}</span>
+          </label>
+        `
+      )
+      .join("");
+    const val = await showModal({
       title: "请选择序号",
       subtitle: `目标歌曲：${name}\n目标歌手：${artist}`,
-      body: text,
-      defaultValue: "1"
+      htmlBody: html,
+      mode: "select",
+      body: "",
+      showInput: false,
+      showCancel: true,
+      okText: "确定",
+      cancelText: "取消"
     });
-    const idx = Number(val) - 1;
+    const idx = Number(val);
     if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
       throw new Error("手动选择取消");
     }
@@ -370,6 +394,13 @@ function extractYear(detail) {
   return null;
 }
 
+function isVipSong(song) {
+  if (!song) return false;
+  const fee = Number(song.fee);
+  const payed = Number(song.payed);
+  return [1, 4, 8, 16].includes(fee) || payed === 1 || !!song.noCopyrightRcmd;
+}
+
 async function processOne(row, idx) {
   updateRowStatus(row, "搜索中...");
   log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
@@ -381,6 +412,7 @@ async function processOne(row, idx) {
   let detailData = null;
   let lyricData = null;
   let downloadErr = null;
+  let vipBlocked = false;
 
   for (const c of candidates) {
     try {
@@ -394,9 +426,16 @@ async function processOne(row, idx) {
       break;
     } catch (err) {
       downloadErr = err;
+      try {
+        const probe = await apiJson("/api/detail", { id: c.id });
+        if (isVipSong(probe?.song)) {
+          vipBlocked = true;
+        }
+      } catch {}
     }
   }
   if (!picked || !mp3Buf || !detailData || !lyricData) {
+    if (vipBlocked) throw new Error("VIP歌曲不可下载");
     if (mode() === "manual") throw new Error("手动选择结果不可下载");
     throw new Error(downloadErr?.message || "自动匹配失败(无可下载链接)");
   }
@@ -606,6 +645,11 @@ stopBtn.addEventListener("click", () => {
   log("收到停止指令，当前进行中的任务完成后将停止");
 });
 modalOk.addEventListener("click", () => {
+  if (modalMode === "select") {
+    const picked = document.querySelector("input[name='manualPick']:checked");
+    closeModal(picked ? picked.value : null);
+    return;
+  }
   closeModal(modalInput.classList.contains("hidden") ? true : modalInput.value.trim());
 });
 modalCancel.addEventListener("click", () => {
@@ -619,6 +663,11 @@ document.addEventListener("keydown", (e) => {
   }
   if (e.key === "Enter") {
     e.preventDefault();
+    if (modalMode === "select") {
+      const picked = document.querySelector("input[name='manualPick']:checked");
+      closeModal(picked ? picked.value : null);
+      return;
+    }
     closeModal(modalInput.classList.contains("hidden") ? true : modalInput.value.trim());
   }
 });

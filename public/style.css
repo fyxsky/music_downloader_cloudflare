@@ -503,6 +503,24 @@ tbody tr:nth-child(even) td {
   gap: 8px;
 }
 
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: #b7c5e5;
+  cursor: pointer;
+}
+
+.option-item:hover {
+  background: rgba(69, 115, 201, 0.14);
+}
+
+.option-item input[type="radio"] {
+  accent-color: #27d5c0;
+}
+
 @media (max-width: 860px) {
   .hero-text h1 { font-size: 30px; }
   .stats-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
