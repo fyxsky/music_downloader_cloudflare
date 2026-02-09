@@ -7,22 +7,28 @@
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <main class="app">
-      <header>
-        <h1>音乐下载器 Cloudflare 版</h1>
-        <p>CSV 批量下载 + ID3 写入（浏览器下载）</p>
+    <div class="bg-noise"></div>
+    <main class="app-shell">
+      <header class="hero">
+        <div class="hero-icon">♫</div>
+        <div class="hero-text">
+          <h1>音乐下载器</h1>
+          <p>Cloudflare 在线版 · CSV 批量下载与 ID3 写入</p>
+        </div>
       </header>
 
-      <section class="card controls">
-        <div class="row">
-          <label class="file">
-            选择 CSV（必须含列：歌曲名、歌手）
+      <section class="panel file-panel">
+        <div class="panel-title">文件设置</div>
+        <div class="file-grid">
+          <label class="file-picker">
+            <span>选择 CSV（需包含：歌曲名、歌手）</span>
             <input id="csvInput" type="file" accept=".csv" />
           </label>
-          <button id="startBtn">开始处理</button>
+          <button id="startBtn" class="primary-btn">开始处理</button>
         </div>
 
-        <div class="row">
+        <div class="match-row">
+          <span class="label">匹配模式</span>
           <div class="segmented" role="radiogroup" aria-label="匹配模式">
             <input type="radio" id="modePrecise" name="matchMode" value="precise" />
             <label for="modePrecise">精准</label>
@@ -31,22 +37,70 @@
             <input type="radio" id="modeManual" name="matchMode" value="manual" />
             <label for="modeManual">手动</label>
           </div>
-          <div id="summary">待处理：0</div>
+          <span class="hint">手动模式会逐首弹出候选选择框</span>
         </div>
       </section>
 
-      <section class="card">
-        <table>
-          <thead>
-            <tr>
-              <th>序号</th>
-              <th>歌曲名</th>
-              <th>歌手</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
+      <section class="panel stats-panel">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="k">总数</div>
+            <div class="v" id="statTotal">0</div>
+          </div>
+          <div class="stat-card success">
+            <div class="k">完成</div>
+            <div class="v" id="statDone">0</div>
+          </div>
+          <div class="stat-card running">
+            <div class="k">处理中</div>
+            <div class="v" id="statRunning">0</div>
+          </div>
+          <div class="stat-card fail">
+            <div class="k">失败</div>
+            <div class="v" id="statFail">0</div>
+          </div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-head">
+            <span>总体进度</span>
+            <span id="progressText">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-head">
+          <div class="panel-title">歌曲列表</div>
+          <div class="filters">
+            <input id="searchName" placeholder="按歌曲名搜索" />
+            <input id="searchArtist" placeholder="按歌手搜索" />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>序号</th>
+                <th>歌曲名</th>
+                <th>歌手</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-head">
+          <div class="panel-title">任务日志</div>
+          <button id="clearLogBtn" class="ghost-btn">清空日志</button>
+        </div>
+        <div id="logBox" class="log-box"></div>
       </section>
     </main>
 

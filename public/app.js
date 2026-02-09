@@ -1,9 +1,36 @@
 const csvInput = document.getElementById("csvInput");
 const startBtn = document.getElementById("startBtn");
+const clearLogBtn = document.getElementById("clearLogBtn");
 const tbody = document.getElementById("tbody");
-const summary = document.getElementById("summary");
+const searchName = document.getElementById("searchName");
+const searchArtist = document.getElementById("searchArtist");
+
+const statTotal = document.getElementById("statTotal");
+const statDone = document.getElementById("statDone");
+const statRunning = document.getElementById("statRunning");
+const statFail = document.getElementById("statFail");
+const progressFill = document.getElementById("progressFill");
+const progressText = document.getElementById("progressText");
+const logBox = document.getElementById("logBox");
 
 let rows = [];
+
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString("zh-CN", { hour12: false });
+}
+
+function log(message) {
+  const line = document.createElement("div");
+  line.className = "log-line";
+  line.textContent = `[${now()}] ${message}`;
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function clearLogs() {
+  logBox.innerHTML = "";
+}
 
 function normalize(text) {
   return (text || "")
@@ -17,20 +44,50 @@ function mode() {
   return document.querySelector("input[name='matchMode']:checked")?.value || "fuzzy";
 }
 
-function setStatus(row, status, cls = "") {
-  row.status = status;
-  render();
+function statusBadge(status) {
+  let cls = "idle";
+  if (status.startsWith("完成")) cls = "ok";
+  else if (status.startsWith("失败")) cls = "err";
+  else if (status !== "待处理") cls = "run";
+  return `<span class="badge ${cls}">${status}</span>`;
+}
+
+function filteredRows() {
+  const nk = normalize(searchName.value);
+  const ak = normalize(searchArtist.value);
+  return rows.filter((r) => {
+    if (nk && !normalize(r.name).includes(nk)) return false;
+    if (ak && !normalize(r.artist).includes(ak)) return false;
+    return true;
+  });
 }
 
 function render() {
-  tbody.innerHTML = rows
-    .map((r, idx) => {
-      const cls = r.status.startsWith("完成") ? "status-ok" : r.status.startsWith("失败") ? "status-err" : "status-run";
-      return `<tr><td>${idx + 1}</td><td>${r.name}</td><td>${r.artist}</td><td class="${cls}">${r.status}</td></tr>`;
-    })
+  const data = filteredRows();
+  tbody.innerHTML = data
+    .map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td title="${r.name}">${r.name}</td>
+        <td title="${r.artist}">${r.artist}</td>
+        <td>${statusBadge(r.status)}</td>
+      </tr>
+    `)
     .join("");
+
+  const total = rows.length;
   const done = rows.filter((r) => r.status.startsWith("完成")).length;
-  summary.textContent = `待处理：${rows.length}，完成：${done}`;
+  const fail = rows.filter((r) => r.status.startsWith("失败")).length;
+  const running = rows.filter((r) => !r.status.startsWith("完成") && !r.status.startsWith("失败") && r.status !== "待处理").length;
+
+  statTotal.textContent = String(total);
+  statDone.textContent = String(done);
+  statFail.textContent = String(fail);
+  statRunning.textContent = String(running);
+
+  const progress = total ? Math.round((done / total) * 100) : 0;
+  progressFill.style.width = `${progress}%`;
+  progressText.textContent = `${progress}%`;
 }
 
 function parseCsv(text) {
@@ -42,14 +99,17 @@ function parseCsv(text) {
   if (nameIdx < 0 || artistIdx < 0) {
     throw new Error("CSV 缺少列：歌曲名、歌手");
   }
-  return lines.slice(1).map((line) => {
-    const cols = line.split(",");
-    return {
-      name: (cols[nameIdx] || "").trim(),
-      artist: (cols[artistIdx] || "").trim(),
-      status: "待处理"
-    };
-  }).filter((r) => r.name);
+  return lines
+    .slice(1)
+    .map((line) => {
+      const cols = line.split(",");
+      return {
+        name: (cols[nameIdx] || "").trim(),
+        artist: (cols[artistIdx] || "").trim(),
+        status: "待处理"
+      };
+    })
+    .filter((r) => r.name);
 }
 
 async function apiJson(path, params = {}) {
@@ -124,15 +184,19 @@ function triggerDownload(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-async function processOne(row) {
-  row.status = "搜索中...";
+function updateRowStatus(row, status) {
+  row.status = status;
   render();
+}
+
+async function processOne(row, idx) {
+  updateRowStatus(row, "搜索中...");
+  log(`#${idx + 1} ${row.name} - ${row.artist}：搜索候选`);
 
   const { songs } = await apiJson("/api/search", { s: `${row.name} ${row.artist}`.trim() });
   const picked = await chooseCandidate(row.name, row.artist, songs || []);
 
-  row.status = "获取详情...";
-  render();
+  updateRowStatus(row, "获取详情...");
 
   const [detailData, lyricData, mp3Buf] = await Promise.all([
     apiJson("/api/detail", { id: picked.id }),
@@ -169,7 +233,7 @@ async function processOne(row) {
           description: "Cover"
         });
       } catch {
-        // 封面失败不影响下载
+        log(`#${idx + 1} ${row.name}：封面写入失败，已忽略`);
       }
     }
 
@@ -181,26 +245,33 @@ async function processOne(row) {
 
   const safe = `${finalName}-${finalArtist}`.replace(/[\\/:*?"<>|]/g, "_");
   triggerDownload(outputBlob, `${safe}.mp3`);
-  row.status = "完成";
-  render();
+  updateRowStatus(row, "完成");
+  log(`#${idx + 1} ${row.name}：完成`);
 }
 
-startBtn.addEventListener("click", async () => {
+async function runAll() {
   if (!rows.length) {
     alert("请先选择有效 CSV 文件");
     return;
   }
+
   startBtn.disabled = true;
-  for (const row of rows) {
+  log(`开始处理，共 ${rows.length} 首，匹配模式：${mode()}`);
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
     try {
-      await processOne(row);
+      await processOne(row, i);
     } catch (err) {
-      row.status = `失败: ${err.message || "处理异常"}`;
-      render();
+      const msg = err?.message || "处理异常";
+      updateRowStatus(row, `失败: ${msg}`);
+      log(`#${i + 1} ${row.name}：失败 - ${msg}`);
     }
   }
+
   startBtn.disabled = false;
-});
+  log("任务结束");
+}
 
 csvInput.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
@@ -208,8 +279,20 @@ csvInput.addEventListener("change", async (e) => {
   try {
     const text = await file.text();
     rows = parseCsv(text);
+    rows.forEach((r) => {
+      r.status = "待处理";
+    });
+    clearLogs();
+    log(`已加载 CSV：${file.name}，共 ${rows.length} 条`);
     render();
   } catch (err) {
     alert(err.message || "CSV 读取失败");
   }
 });
+
+startBtn.addEventListener("click", runAll);
+searchName.addEventListener("input", render);
+searchArtist.addEventListener("input", render);
+clearLogBtn.addEventListener("click", clearLogs);
+
+render();
