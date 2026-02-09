@@ -1,0 +1,7 @@
+name = "music-downloader-cloudflare"
+main = "src/worker.js"
+compatibility_date = "2026-02-09"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
