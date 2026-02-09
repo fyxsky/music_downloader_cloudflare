@@ -1,27 +1,19 @@
 import QQProvider from "./listen1/provider/qq.js";
-import KuwoProvider from "./listen1/provider/kuwo.js";
 import KugouProvider from "./listen1/provider/kugou.js";
-import BilibiliProvider from "./listen1/provider/bilibili.js";
 import hackHeaderModule from "./listen1/hack_header.js";
 
-const SOURCE_PRIORITY = ["qq", "kuwo", "kugou", "netease", "xiami", "bilibili"];
+const SOURCE_PRIORITY = ["qq", "kugou", "netease"];
 
 const PROVIDERS = {
   qq: QQProvider,
-  kuwo: KuwoProvider,
   kugou: KugouProvider,
-  netease: null,
-  xiami: null,
-  bilibili: BilibiliProvider
+  netease: null
 };
 
 const ID_PREFIX_MAP = {
   qq: "qq",
-  kw: "kuwo",
   kg: "kugou",
-  ne: "netease",
-  xm: "xiami",
-  bi: "bilibili"
+  ne: "netease"
 };
 
 class CookieProvider {
@@ -204,9 +196,6 @@ export function createListen1Client() {
           } catch {
             // ignore
           }
-          continue;
-        }
-        if (source === "xiami") {
           continue;
         }
         const provider = PROVIDERS[source];

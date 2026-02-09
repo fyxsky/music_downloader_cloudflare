@@ -306,16 +306,12 @@ async function chooseCandidates(name, artist, candidates) {
 
   if (m === "manual") {
     const options = sameName.slice(0, 10);
-    const html = options
+    const html = `<div class="option-list">${options
       .map(
-        (s, i) => `
-          <label class="option-item">
-            <input type="radio" name="manualPick" value="${i}" ${i === 0 ? "checked" : ""} />
-            <span>${i + 1}. ${escapeHtml(s.name)} - ${escapeHtml(artistList(s))}</span>
-          </label>
-        `
+        (s, i) =>
+          `<label class="option-item"><input type="radio" name="manualPick" value="${i}" ${i === 0 ? "checked" : ""} /><span>${i + 1}. ${escapeHtml(s.name)} - ${escapeHtml(artistList(s))}</span></label>`
       )
-      .join("");
+      .join("")}</div>`;
     const val = await showModal({
       title: "请选择序号",
       subtitle: `目标歌曲：${name}\n目标歌手：${artist}`,
