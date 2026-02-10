@@ -1,4 +1,4 @@
-name = "music-downloader-cloudflare"
+name = "musicdownloadercloudflare"
 main = "src/worker.js"
 compatibility_date = "2026-02-09"
 
